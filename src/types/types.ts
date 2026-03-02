@@ -52,6 +52,11 @@ export interface Rating {
 
 export type SaveBehavior = 'addToObsidian' | 'saveFile' | 'copyToClipboard';
 
+export interface LocalImageSettings {
+	enabled: boolean;
+	attachmentFolder: string; // vault-relative folder, e.g. "_attachments"
+}
+
 export interface ReaderSettings {
 	fontSize: number;
 	lineHeight: number;
@@ -87,6 +92,7 @@ export interface Settings {
 	history: HistoryEntry[];
 	ratings: Rating[];
 	saveBehavior: 'addToObsidian' | 'saveFile' | 'copyToClipboard';
+	localImages: LocalImageSettings;
 }
 
 export interface ModelConfig {

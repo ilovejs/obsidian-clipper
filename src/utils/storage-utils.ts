@@ -1,5 +1,5 @@
 import browser from './browser-polyfill';
-import { Settings, ModelConfig, PropertyType, HistoryEntry, Provider, Rating } from '../types/types';
+import { Settings, ModelConfig, PropertyType, HistoryEntry, Provider, Rating, LocalImageSettings } from '../types/types';
 import { debugLog } from './debug';
 import { copyToClipboard } from 'core/popup';
 
@@ -37,7 +37,11 @@ export let generalSettings: Settings = {
 	},
 	history: [],
 	ratings: [],
-	saveBehavior: 'addToObsidian'
+	saveBehavior: 'addToObsidian',
+	localImages: {
+		enabled: false,
+		attachmentFolder: '_attachments'
+	}
 };
 
 export function setLocalStorage(key: string, value: any): Promise<void> {
@@ -45,7 +49,7 @@ export function setLocalStorage(key: string, value: any): Promise<void> {
 }
 
 export function getLocalStorage(key: string): Promise<any> {
-	return browser.storage.local.get(key).then((result: {[key: string]: any}) => result[key]);
+	return browser.storage.local.get(key).then((result: { [key: string]: any }) => result[key]);
 }
 
 interface StorageData {
@@ -88,13 +92,17 @@ interface StorageData {
 	history?: HistoryEntry[];
 	ratings?: Rating[];
 	migrationVersion?: number;
+	local_image_settings?: {
+		enabled?: boolean;
+		attachmentFolder?: string;
+	};
 }
 
 const CURRENT_MIGRATION_VERSION = 1;
 
 export async function loadSettings(): Promise<Settings> {
 	const data = await browser.storage.sync.get(null) as StorageData;
-	
+
 	// Load default settings first
 	const defaultSettings: Settings = {
 		vaults: [],
@@ -129,6 +137,10 @@ export async function loadSettings(): Promise<Settings> {
 		},
 		history: [],
 		ratings: [],
+		localImages: {
+			enabled: false,
+			attachmentFolder: '_attachments'
+		}
 	};
 
 	// Update migration version if needed
@@ -139,11 +151,11 @@ export async function loadSettings(): Promise<Settings> {
 
 	// Validate and sanitize data to prevent corruption
 	const sanitizedVaults = Array.isArray(data.vaults) ? data.vaults.filter(v => typeof v === 'string') : [];
-	const sanitizedModels = Array.isArray(data.interpreter_settings?.models) 
-		? data.interpreter_settings.models.filter(m => m && typeof m === 'object' && typeof m.id === 'string') 
+	const sanitizedModels = Array.isArray(data.interpreter_settings?.models)
+		? data.interpreter_settings.models.filter(m => m && typeof m === 'object' && typeof m.id === 'string')
 		: [];
-	const sanitizedProviders = Array.isArray(data.interpreter_settings?.providers) 
-		? data.interpreter_settings.providers.filter(p => p && typeof p === 'object' && typeof p.id === 'string') 
+	const sanitizedProviders = Array.isArray(data.interpreter_settings?.providers)
+		? data.interpreter_settings.providers.filter(p => p && typeof p === 'object' && typeof p.id === 'string')
 		: [];
 
 	// Load user settings
@@ -153,8 +165,8 @@ export async function loadSettings(): Promise<Settings> {
 		betaFeatures: data.general_settings?.betaFeatures ?? defaultSettings.betaFeatures,
 		legacyMode: data.general_settings?.legacyMode ?? defaultSettings.legacyMode,
 		silentOpen: data.general_settings?.silentOpen ?? defaultSettings.silentOpen,
-		openBehavior: typeof data.general_settings?.openBehavior === 'boolean' 
-			? (data.general_settings.openBehavior ? 'embedded' : 'popup') 
+		openBehavior: typeof data.general_settings?.openBehavior === 'boolean'
+			? (data.general_settings.openBehavior ? 'embedded' : 'popup')
 			: (data.general_settings?.openBehavior ?? defaultSettings.openBehavior),
 		highlighterEnabled: data.highlighter_settings?.highlighterEnabled ?? defaultSettings.highlighterEnabled,
 		alwaysShowHighlights: data.highlighter_settings?.alwaysShowHighlights ?? defaultSettings.alwaysShowHighlights,
@@ -176,7 +188,11 @@ export async function loadSettings(): Promise<Settings> {
 		stats: data.stats || defaultSettings.stats,
 		history: data.history || defaultSettings.history,
 		ratings: data.ratings || defaultSettings.ratings,
-		saveBehavior: data.general_settings?.saveBehavior ?? defaultSettings.saveBehavior
+		saveBehavior: data.general_settings?.saveBehavior ?? defaultSettings.saveBehavior,
+		localImages: {
+			enabled: data.local_image_settings?.enabled ?? defaultSettings.localImages.enabled,
+			attachmentFolder: data.local_image_settings?.attachmentFolder ?? defaultSettings.localImages.attachmentFolder
+		}
 	};
 
 	generalSettings = loadedSettings;
@@ -220,7 +236,11 @@ export async function saveSettings(settings?: Partial<Settings>): Promise<void> 
 			theme: generalSettings.readerSettings.theme,
 			themeMode: generalSettings.readerSettings.themeMode
 		},
-		stats: generalSettings.stats
+		stats: generalSettings.stats,
+		local_image_settings: {
+			enabled: generalSettings.localImages.enabled,
+			attachmentFolder: generalSettings.localImages.attachmentFolder
+		}
 	});
 }
 
@@ -247,8 +267,8 @@ export async function incrementStat(
 }
 
 export async function addHistoryEntry(
-	action: keyof Settings['stats'], 
-	url: string, 
+	action: keyof Settings['stats'],
+	url: string,
 	title?: string,
 	vault?: string,
 	path?: string

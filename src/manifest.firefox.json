@@ -9,6 +9,7 @@
 		"activeTab",
 		"clipboardWrite",
 		"contextMenus",
+		"downloads",
 		"storage",
 		"scripting"
 	],
@@ -35,20 +36,40 @@
 		"128": "icons/icon128.png"
 	},
 	"background": {
-		"scripts": ["background.js"]
+		"scripts": [
+			"background.js"
+		]
 	},
 	"content_scripts": [
 		{
-			"matches": ["http://*/*", "https://*/*"],
-			"js": ["browser-polyfill.min.js", "content.js"],
-			"css": ["highlighter.css"]
+			"matches": [
+				"http://*/*",
+				"https://*/*"
+			],
+			"js": [
+				"browser-polyfill.min.js",
+				"content.js"
+			],
+			"css": [
+				"highlighter.css"
+			]
 		}
 	],
 	"web_accessible_resources": [
 		{
-			"resources": ["reader.css", "reader-script.js", "browser-polyfill.min.js", "style.css", "side-panel.html"],
-			"extension_ids": ["*"],
-   			"matches": [ "*://*/*" ]
+			"resources": [
+				"reader.css",
+				"reader-script.js",
+				"browser-polyfill.min.js",
+				"style.css",
+				"side-panel.html"
+			],
+			"extension_ids": [
+				"*"
+			],
+			"matches": [
+				"*://*/*"
+			]
 		}
 	],
 	"content_security_policy": {
@@ -82,13 +103,17 @@
 			"id": "clipper@obsidian.md",
 			"strict_min_version": "113.0",
 			"data_collection_permissions": {
-				"required": ["none"]
+				"required": [
+					"none"
+				]
 			}
 		},
 		"gecko_android": {
 			"strict_min_version": "113.0",
 			"data_collection_permissions": {
-				"required": ["none"]
+				"required": [
+					"none"
+				]
 			}
 		}
 	}

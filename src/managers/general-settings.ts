@@ -86,11 +86,11 @@ export async function setShortcutInstructions() {
 		// Clear content
 		shortcutInstructionsElement.textContent = '';
 		shortcutInstructionsElement.appendChild(document.createTextNode(getMessage('shortcutInstructionsIntro') + ' '));
-		
+
 		// Browser-specific instructions
 		let instructionsText = '';
 		let url = '';
-		
+
 		switch (browser) {
 			case 'chrome':
 				instructionsText = getMessage('shortcutInstructionsChrome', ['$URL']);
@@ -115,17 +115,17 @@ export async function setShortcutInstructions() {
 			default:
 				instructionsText = getMessage('shortcutInstructionsDefault');
 		}
-		
+
 		if (url) {
 			// Split text around the URL placeholder and add strong element
 			const parts = instructionsText.split('$URL');
 			if (parts.length === 2) {
 				shortcutInstructionsElement.appendChild(document.createTextNode(parts[0]));
-				
+
 				const strongElement = document.createElement('strong');
 				strongElement.textContent = url;
 				shortcutInstructionsElement.appendChild(strongElement);
-				
+
 				shortcutInstructionsElement.appendChild(document.createTextNode(parts[1]));
 			} else {
 				// Fallback if no placeholder found
@@ -201,7 +201,7 @@ export function initializeGeneralSettings(): void {
 							}
 						});
 						await handleRating(rating);
-						
+
 						// Hide the rating section after rating
 						if (rateExtensionSection) {
 							rateExtensionSection.style.display = 'none';
@@ -227,6 +227,7 @@ export function initializeGeneralSettings(): void {
 		initializeHighlighterSettings();
 		initializeExportHighlightsButton();
 		initializeSaveBehaviorDropdown();
+		initializeLocalImageSettings();
 		await initializeUsageChart();
 
 		// Initialize feedback modal close button
@@ -266,7 +267,13 @@ function saveSettingsFromForm(): void {
 		silentOpen: silentOpenToggle?.checked ?? generalSettings.silentOpen,
 		highlighterEnabled: highlighterToggle?.checked ?? generalSettings.highlighterEnabled,
 		alwaysShowHighlights: alwaysShowHighlightsToggle?.checked ?? generalSettings.alwaysShowHighlights,
-		highlightBehavior: highlightBehaviorSelect?.value ?? generalSettings.highlightBehavior
+		highlightBehavior: highlightBehaviorSelect?.value ?? generalSettings.highlightBehavior,
+		localImages: {
+			enabled: (document.getElementById('local-images-toggle') as HTMLInputElement)?.checked
+				?? generalSettings.localImages.enabled,
+			attachmentFolder: (document.getElementById('attachment-folder-input') as HTMLInputElement)?.value.trim()
+				|| generalSettings.localImages.attachmentFolder
+		}
 	};
 
 	saveSettings(updatedSettings);
@@ -311,7 +318,7 @@ async function initializeKeyboardShortcuts(): Promise<void> {
 		getCommands().then(commands => {
 			commands.forEach(command => {
 				const shortcutItem = createElementWithClass('div', 'shortcut-item');
-				
+
 				const descriptionSpan = document.createElement('span');
 				descriptionSpan.textContent = command.description;
 				shortcutItem.appendChild(descriptionSpan);
@@ -362,21 +369,60 @@ function initializeResetDefaultTemplateButton(): void {
 }
 
 function initializeSaveBehaviorDropdown(): void {
-    const dropdown = document.getElementById('save-behavior-dropdown') as HTMLSelectElement;
-    if (!dropdown) return;
+	const dropdown = document.getElementById('save-behavior-dropdown') as HTMLSelectElement;
+	if (!dropdown) return;
 
-    dropdown.value = generalSettings.saveBehavior;
-    dropdown.addEventListener('change', () => {
-        const newValue = dropdown.value as 'addToObsidian' | 'copyToClipboard' | 'saveFile';
-        saveSettings({ saveBehavior: newValue });
-    });
+	dropdown.value = generalSettings.saveBehavior;
+	dropdown.addEventListener('change', () => {
+		const newValue = dropdown.value as 'addToObsidian' | 'copyToClipboard' | 'saveFile';
+		saveSettings({ saveBehavior: newValue });
+	});
+}
+
+function initializeLocalImageSettings(): void {
+	// Toggle: enable/disable copying images to vault
+	const toggle = document.getElementById('local-images-toggle') as HTMLInputElement;
+	const folderInput = document.getElementById('attachment-folder-input') as HTMLInputElement;
+	const folderRow = document.getElementById('attachment-folder-row') as HTMLElement;
+
+	if (!toggle) return;
+
+	// Set initial state
+	toggle.checked = generalSettings.localImages?.enabled ?? false;
+	if (folderInput) {
+		folderInput.value = generalSettings.localImages?.attachmentFolder || '_attachments';
+	}
+	if (folderRow) {
+		folderRow.style.display = toggle.checked ? '' : 'none';
+	}
+
+	const persist = () => {
+		saveSettings({
+			...generalSettings,
+			localImages: {
+				enabled: toggle.checked,
+				attachmentFolder: folderInput?.value.trim() || '_attachments'
+			}
+		});
+	};
+
+	toggle.addEventListener('change', () => {
+		if (folderRow) {
+			folderRow.style.display = toggle.checked ? '' : 'none';
+		}
+		persist();
+	});
+
+	if (folderInput) {
+		folderInput.addEventListener('input', persist);
+	}
 }
 
 export function resetDefaultTemplate(): void {
 	const defaultTemplate = createDefaultTemplate();
 	const currentTemplates = getTemplates();
 	const defaultIndex = currentTemplates.findIndex((t: Template) => t.name === getMessage('defaultTemplateName'));
-	
+
 	if (defaultIndex !== -1) {
 		currentTemplates[defaultIndex] = defaultTemplate;
 	} else {
@@ -442,7 +488,7 @@ async function initializeUsageChart(): Promise<void> {
 			timeRange: periodSelect.value as '30d' | 'all',
 			aggregation: aggregationSelect.value as 'day' | 'week' | 'month'
 		};
-		
+
 		const chartData = aggregateUsageData(history, options);
 		await createUsageChart(chartContainer, chartData);
 	};
@@ -458,17 +504,17 @@ async function initializeUsageChart(): Promise<void> {
 async function handleRating(rating: number) {
 	// Get existing ratings from storage
 	const existingRatings = await getLocalStorage('ratings') || [];
-	
+
 	// Add new rating
 	const newRating = {
 		rating,
 		date: new Date().toISOString()
 	};
-	
+
 	// Update both storage and generalSettings
 	const updatedRatings = [...existingRatings, newRating];
 	generalSettings.ratings = updatedRatings;
-	
+
 	// Save to storage
 	await setLocalStorage('ratings', updatedRatings);
 	await saveSettings();

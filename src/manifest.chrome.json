@@ -10,6 +10,7 @@
 		"clipboardWrite",
 		"commands",
 		"contextMenus",
+		"downloads",
 		"sidePanel",
 		"storage",
 		"scripting"
@@ -39,16 +40,34 @@
 	},
 	"content_scripts": [
 		{
-			"matches": ["http://*/*", "https://*/*"],
-			"js": ["browser-polyfill.min.js", "content.js"],
-			"css": ["highlighter.css"]
+			"matches": [
+				"http://*/*",
+				"https://*/*"
+			],
+			"js": [
+				"browser-polyfill.min.js",
+				"content.js"
+			],
+			"css": [
+				"highlighter.css"
+			]
 		}
 	],
 	"web_accessible_resources": [
 		{
-			"resources": ["reader.css", "reader-script.js", "browser-polyfill.min.js", "style.css", "side-panel.html"],
-			"extension_ids": ["*"],
-			"matches": [ "*://*/*" ]
+			"resources": [
+				"reader.css",
+				"reader-script.js",
+				"browser-polyfill.min.js",
+				"style.css",
+				"side-panel.html"
+			],
+			"extension_ids": [
+				"*"
+			],
+			"matches": [
+				"*://*/*"
+			]
 		}
 	],
 	"content_security_policy": {
