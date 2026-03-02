@@ -39,8 +39,7 @@ export let generalSettings: Settings = {
 	ratings: [],
 	saveBehavior: 'addToObsidian',
 	localImages: {
-		enabled: false,
-		attachmentFolder: '_attachments'
+		enabled: false
 	}
 };
 
@@ -94,7 +93,6 @@ interface StorageData {
 	migrationVersion?: number;
 	local_image_settings?: {
 		enabled?: boolean;
-		attachmentFolder?: string;
 	};
 }
 
@@ -138,8 +136,7 @@ export async function loadSettings(): Promise<Settings> {
 		history: [],
 		ratings: [],
 		localImages: {
-			enabled: false,
-			attachmentFolder: '_attachments'
+			enabled: false
 		}
 	};
 
@@ -190,8 +187,7 @@ export async function loadSettings(): Promise<Settings> {
 		ratings: data.ratings || defaultSettings.ratings,
 		saveBehavior: data.general_settings?.saveBehavior ?? defaultSettings.saveBehavior,
 		localImages: {
-			enabled: data.local_image_settings?.enabled ?? defaultSettings.localImages.enabled,
-			attachmentFolder: data.local_image_settings?.attachmentFolder ?? defaultSettings.localImages.attachmentFolder
+			enabled: data.local_image_settings?.enabled ?? defaultSettings.localImages.enabled
 		}
 	};
 
@@ -238,8 +234,7 @@ export async function saveSettings(settings?: Partial<Settings>): Promise<void> 
 		},
 		stats: generalSettings.stats,
 		local_image_settings: {
-			enabled: generalSettings.localImages.enabled,
-			attachmentFolder: generalSettings.localImages.attachmentFolder
+			enabled: generalSettings.localImages.enabled
 		}
 	});
 }

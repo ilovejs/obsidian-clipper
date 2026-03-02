@@ -330,29 +330,30 @@ browser.runtime.onMessage.addListener((request: unknown, sender: browser.Runtime
 			}
 		}
 
-		if (typedRequest.action === "downloadImage") {
-			const { imageUrl, filePath } = typedRequest as any;
-			if (!imageUrl || !filePath) {
-				sendResponse({ success: false, error: 'Missing imageUrl or filePath' });
+		if (typedRequest.action === "fetchImageAsBase64") {
+			const { imageUrl } = typedRequest as any;
+			if (!imageUrl) {
+				sendResponse({ success: false, error: 'Missing imageUrl' });
 				return true;
 			}
-			// browser.downloads is unavailable on Safari — skip gracefully
-			if (!(browser as any).downloads) {
-				sendResponse({ success: false, error: 'downloads API not available on this browser' });
-				return true;
-			}
-			(browser as any).downloads.download({
-				url: imageUrl,
-				filename: filePath,
-				conflictAction: 'uniquify',
-				saveAs: false
-			}).then((downloadId: number) => {
-				sendResponse({ success: true, downloadId });
-			}).catch((err: Error) => {
-				console.error('Error downloading image:', err);
-				sendResponse({ success: false, error: err.message });
-			});
-			return true;
+			fetch(imageUrl)
+				.then(async (res) => {
+					if (!res.ok) throw new Error(`HTTP ${res.status}`);
+					const blob = await res.blob();
+					const reader = new FileReader();
+					reader.onloadend = () => {
+						sendResponse({ success: true, dataUri: reader.result as string });
+					};
+					reader.onerror = () => {
+						sendResponse({ success: false, error: 'FileReader error' });
+					};
+					reader.readAsDataURL(blob);
+				})
+				.catch((err: Error) => {
+					console.warn('[background] fetchImageAsBase64 failed for', imageUrl, err.message);
+					sendResponse({ success: false, error: err.message });
+				});
+			return true; // async sendResponse
 		}
 
 		if (typedRequest.action === "openObsidianUrl") {

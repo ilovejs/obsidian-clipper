@@ -54,7 +54,6 @@ export type SaveBehavior = 'addToObsidian' | 'saveFile' | 'copyToClipboard';
 
 export interface LocalImageSettings {
 	enabled: boolean;
-	attachmentFolder: string; // vault-relative folder, e.g. "_attachments"
 }
 
 export interface ReaderSettings {

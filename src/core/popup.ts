@@ -10,7 +10,7 @@ import { getLocalStorage, setLocalStorage, loadSettings, generalSettings, Settin
 import { escapeHtml, unescapeValue } from '../utils/string-utils';
 import { loadTemplates, createDefaultTemplate } from '../managers/template-manager';
 import browser from '../utils/browser-polyfill';
-import { downloadImagesToVault } from '../utils/image-downloader';
+import { embedImagesAsDataUris } from '../utils/image-downloader';
 import { addBrowserClassToHtml, detectBrowser } from '../utils/browser-detection';
 import { createElementWithClass } from '../utils/dom-utils';
 import { initializeInterpreter, handleInterpreterUI, collectPromptVariables } from '../utils/interpreter';
@@ -1278,14 +1278,13 @@ async function handleClipObsidian(): Promise<void> {
 		const noteName = isDailyNote ? '' : noteNameField?.value || '';
 		const path = isDailyNote ? '' : pathField?.value || '';
 
-		// Download images to vault if the setting is enabled
+		// Embed images as data URIs if the setting is enabled
 		let finalNoteBody = noteBody;
 		if (generalSettings.localImages?.enabled) {
-			const attachmentFolder = generalSettings.localImages.attachmentFolder || '_attachments';
 			try {
-				finalNoteBody = await downloadImagesToVault(noteBody, selectedVault, attachmentFolder);
+				finalNoteBody = await embedImagesAsDataUris(noteBody);
 			} catch (err) {
-				console.warn('[handleClipObsidian] Image download step failed, using remote URLs:', err);
+				console.warn('[handleClipObsidian] Image embedding step failed, using remote URLs:', err);
 				// Graceful degradation: keep original URLs
 				finalNoteBody = noteBody;
 			}

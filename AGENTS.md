@@ -16,13 +16,14 @@ src/
     popup.ts             – Main UI logic: clipping flow, handleClipObsidian(), template rendering
     settings.ts          – Settings page orchestration
   utils/
-    obsidian-note-creator.ts  – saveToObsidian(): builds obsidian:// URIs and triggers vault save
+    obsidian-note-creator.ts  – saveToObsidian(): builds obsidian://URIs and triggers vault save
     markdown-converter.ts     – HTML → Markdown conversion (TurndownService-based); all image/figure rules live here
     content-extractor.ts      – extractPageContent() / initializePageContent(); builds {{variables}}
     string-utils.ts           – processUrls(): makes all img src / href absolute before conversion
     storage-utils.ts          – loadSettings() / saveSettings(); generalSettings singleton
     file-utils.ts             – saveFile(): browser download / Share API fallback
-    filters/                  – Liquid-style template filters
+    image-downloader.ts        – embedImagesAsDataUris(): fetches images and converts to base64
+  filters/                  – Liquid-style template filters
   types/
     types.ts             – Shared TypeScript interfaces (Template, Settings, Property, …)
   managers/
@@ -47,6 +48,14 @@ webpack.config.js        – Bundles popup, background, content, settings, side-
 - URLs are first made absolute via `processUrls()` (`string-utils.ts`).
 - TurndownService rules handle tables, figures (`![alt](src)`), YouTube embeds, math, etc.
 - Images currently appear as standard Markdown image links pointing to the **original remote URL**.
+
+### Localized Image Copy
+1. If `localImages.enabled` is true, `popup.ts` calls `embedImagesAsDataUris()` before saving.
+2. `image-downloader.ts` extracts all remote `![]()` URLs from the markdown.
+3. For each URL, it sends a `fetchImageAsBase64` message to the background script.
+4. `background.ts` fetches the image (cross-origin permitted via `<all_urls>`) and returns a base64 Data URI.
+5. The markdown is rewritten to embed the image directly: `![alt](data:image/png;base64,...)`.
+6. This ensures the note is self-contained and immune to link-rot, regardless of vault location.
 
 ---
 

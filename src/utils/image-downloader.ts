@@ -1,10 +1,8 @@
 import browser from './browser-polyfill';
-import { sanitizeFileName } from './string-utils';
 
 /**
  * Extracts all remote image URLs from a Markdown string.
- * Matches standard Markdown image syntax: ![alt](https://...)
- * Skips data: URIs and already-relative/vault-local paths.
+ * Matches: ![alt](https://...) — skips data: URIs and relative paths.
  */
 export function extractRemoteImageUrls(markdown: string): string[] {
     const regex = /!\[[^\]]*\]\((https?:\/\/[^)\s]+)\)/g;
@@ -17,117 +15,77 @@ export function extractRemoteImageUrls(markdown: string): string[] {
 }
 
 /**
- * Derives a safe local filename from a remote image URL.
- * e.g. https://example.com/assets/hero.png?w=800 → "hero.png"
+ * Asks the background service worker to fetch an image URL and return
+ * it as a base64 data URI string (e.g. "data:image/png;base64,...").
  *
- * Falls back to a timestamped generic name if no filename can be parsed.
- */
-export function imageUrlToFilename(url: string): string {
-    try {
-        const u = new URL(url);
-        const rawName = u.pathname.split('/').pop() || 'image';
-        // Separate stem and extension
-        const dotIdx = rawName.lastIndexOf('.');
-        const stem = dotIdx !== -1 ? rawName.slice(0, dotIdx) : rawName;
-        const ext = dotIdx !== -1 ? rawName.slice(dotIdx) : '.png';
-        const safeStem = sanitizeFileName(stem) || 'image';
-        // Keep extension lowercase, strip query params that may have crept in
-        const safeExt = ext.replace(/[?#].*$/, '').toLowerCase() || '.png';
-        return safeStem + safeExt;
-    } catch {
-        return `image_${Date.now()}.png`;
-    }
-}
-
-/**
- * Sends a message to the background service worker to trigger
- * browser.downloads.download() for a single image.
+ * The background has unrestricted fetch access via <all_urls> host_permissions,
+ * so cross-origin images that would be blocked in a content script work fine here.
  *
- * Returns true on success; false + logs a warning on failure.
+ * Returns null if the fetch fails (network error, 4xx/5xx, CORS block, etc.)
  */
-async function requestImageDownload(imageUrl: string, filePath: string): Promise<boolean> {
+async function fetchAsDataUri(imageUrl: string): Promise<string | null> {
     try {
         const response = await browser.runtime.sendMessage({
-            action: 'downloadImage',
-            imageUrl,
-            filePath
-        }) as { success: boolean; downloadId?: number; error?: string };
+            action: 'fetchImageAsBase64',
+            imageUrl
+        }) as { success: boolean; dataUri?: string; error?: string };
 
-        if (!response.success) {
-            console.warn(`[image-downloader] Download rejected for ${imageUrl}:`, response.error);
-            return false;
+        if (!response.success || !response.dataUri) {
+            console.warn(`[image-downloader] Fetch failed for ${imageUrl}:`, response.error);
+            return null;
         }
-        return true;
+        return response.dataUri;
     } catch (err) {
-        console.warn(`[image-downloader] Message failed for ${imageUrl}:`, err);
-        return false;
+        console.warn(`[image-downloader] Message error for ${imageUrl}:`, err);
+        return null;
     }
 }
 
 /**
- * Downloads all remote images referenced in `markdown` to the user's
- * Downloads folder under `<sanitizedVaultName>/<attachmentFolder>/`,
- * then rewrites those image links to vault-relative paths so Obsidian
- * can resolve them.
+ * Fetches all remote images referenced in `markdown` via the background
+ * service worker, converts them to base64 data URIs, and embeds them
+ * directly in the markdown content.
  *
- * Any image that fails to download keeps its original remote URL
- * (graceful degradation — the clip always saves).
+ * Result example:
+ *   Before: ![hero](https://example.com/hero.png)
+ *   After:  ![hero](data:image/png;base64,iVBORw0KGgo...)
  *
- * @param markdown         - Rendered Markdown body (no frontmatter)
- * @param vaultName        - Obsidian vault name, used as the top-level
- *                           folder inside Downloads to mirror vault layout
- * @param attachmentFolder - Vault-relative attachment folder (e.g. "_attachments")
- * @returns Rewritten markdown with local image paths where downloads succeeded
+ * Benefits over disk-based approaches:
+ * - No filesystem access needed — works regardless of vault location
+ * - Images are permanently self-contained in the note
+ * - Obsidian renders data: URIs natively in both editor and preview
+ * - Truly offline and immune to link rot
+ *
+ * Images that fail to fetch (404, CORS, network error) keep their original
+ * remote URL — the clip always saves successfully (graceful degradation).
+ *
+ * @param markdown - Rendered Markdown body (no frontmatter)
+ * @returns Markdown with remote image URLs replaced by data: URIs
  */
-export async function downloadImagesToVault(
-    markdown: string,
-    vaultName: string,
-    attachmentFolder: string
-): Promise<string> {
+export async function embedImagesAsDataUris(markdown: string): Promise<string> {
     const imageUrls = extractRemoteImageUrls(markdown);
     if (imageUrls.length === 0) return markdown;
 
-    // Map: original URL → vault-relative path (populated on success)
-    const urlToLocal = new Map<string, string>();
+    // Fetch all images concurrently; keep a URL→dataUri map for rewriting
+    const urlToDataUri = new Map<string, string>();
 
-    // Track used filenames to avoid local collisions between different URLs
-    // that happen to resolve to the same filename
-    const usedFilenames = new Set<string>();
+    await Promise.allSettled(
+        imageUrls.map(async (url) => {
+            const dataUri = await fetchAsDataUri(url);
+            if (dataUri) {
+                urlToDataUri.set(url, dataUri);
+            }
+        })
+    );
 
-    const safeVault = sanitizeFileName(vaultName) || 'vault';
-    const safeFolder = attachmentFolder.replace(/^\/|\/$/g, '') || '_attachments';
+    if (urlToDataUri.size === 0) return markdown;
 
-    await Promise.allSettled(imageUrls.map(async (url) => {
-        let filename = imageUrlToFilename(url);
-
-        // Deduplicate locally if two different URLs share the same filename
-        if (usedFilenames.has(filename)) {
-            const dotIdx = filename.lastIndexOf('.');
-            const stem = dotIdx !== -1 ? filename.slice(0, dotIdx) : filename;
-            const ext = dotIdx !== -1 ? filename.slice(dotIdx) : '';
-            filename = `${stem}_${Date.now()}${ext}`;
-        }
-        usedFilenames.add(filename);
-
-        // Path inside the user's Downloads folder:
-        // <VaultName>/<attachmentFolder>/<filename>
-        const filePath = `${safeVault}/${safeFolder}/${filename}`;
-        const vaultRelativePath = `${safeFolder}/${filename}`;
-
-        const ok = await requestImageDownload(url, filePath);
-        if (ok) {
-            urlToLocal.set(url, vaultRelativePath);
-        }
-    }));
-
-    if (urlToLocal.size === 0) return markdown;
-
-    // Rewrite all matched image links whose download succeeded
+    // Rewrite image links whose fetch succeeded; leave others untouched
     return markdown.replace(
         /!\[([^\]]*)\]\((https?:\/\/[^)\s]+)\)/g,
         (match, alt, url) => {
-            const local = urlToLocal.get(url);
-            return local ? `![${alt}](${local})` : match;
+            const dataUri = urlToDataUri.get(url);
+            return dataUri ? `![${alt}](${dataUri})` : match;
         }
     );
 }

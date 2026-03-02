@@ -270,9 +270,7 @@ function saveSettingsFromForm(): void {
 		highlightBehavior: highlightBehaviorSelect?.value ?? generalSettings.highlightBehavior,
 		localImages: {
 			enabled: (document.getElementById('local-images-toggle') as HTMLInputElement)?.checked
-				?? generalSettings.localImages.enabled,
-			attachmentFolder: (document.getElementById('attachment-folder-input') as HTMLInputElement)?.value.trim()
-				|| generalSettings.localImages.attachmentFolder
+				?? generalSettings.localImages.enabled
 		}
 	};
 
@@ -380,42 +378,22 @@ function initializeSaveBehaviorDropdown(): void {
 }
 
 function initializeLocalImageSettings(): void {
-	// Toggle: enable/disable copying images to vault
+	// Toggle: enable/disable embedding images as data URIs
 	const toggle = document.getElementById('local-images-toggle') as HTMLInputElement;
-	const folderInput = document.getElementById('attachment-folder-input') as HTMLInputElement;
-	const folderRow = document.getElementById('attachment-folder-row') as HTMLElement;
 
 	if (!toggle) return;
 
 	// Set initial state
 	toggle.checked = generalSettings.localImages?.enabled ?? false;
-	if (folderInput) {
-		folderInput.value = generalSettings.localImages?.attachmentFolder || '_attachments';
-	}
-	if (folderRow) {
-		folderRow.style.display = toggle.checked ? '' : 'none';
-	}
 
-	const persist = () => {
+	toggle.addEventListener('change', () => {
 		saveSettings({
 			...generalSettings,
 			localImages: {
-				enabled: toggle.checked,
-				attachmentFolder: folderInput?.value.trim() || '_attachments'
+				enabled: toggle.checked
 			}
 		});
-	};
-
-	toggle.addEventListener('change', () => {
-		if (folderRow) {
-			folderRow.style.display = toggle.checked ? '' : 'none';
-		}
-		persist();
 	});
-
-	if (folderInput) {
-		folderInput.addEventListener('input', persist);
-	}
 }
 
 export function resetDefaultTemplate(): void {
